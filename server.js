@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const multer = require('multer');
-const Database = require('better-sqlite3');
+const { DatabaseSync } = require('node:sqlite');
 const { WebSocketServer } = require('ws');
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -20,8 +20,8 @@ const MAX_IMAGE_MB = parseInt(process.env.MAX_IMAGE_MB || '10', 10);
 
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
-const db = new Database(path.join(DATA_DIR, 'droplink.db'));
-db.pragma('journal_mode = WAL');
+const db = new DatabaseSync(path.join(DATA_DIR, 'droplink.db'));
+db.exec('PRAGMA journal_mode = WAL');
 db.exec(`
   CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
