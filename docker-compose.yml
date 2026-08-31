@@ -1,0 +1,14 @@
+services:
+  droplink:
+    build: .
+    container_name: droplink
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # 部署前改成你自己的口令
+      ACCESS_TOKEN: "change-me"
+      # 单张图片大小上限（MB），可选
+      MAX_IMAGE_MB: "10"
+    volumes:
+      - ./data:/app/data

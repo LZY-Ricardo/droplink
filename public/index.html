@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DropLink · 设备互传</title>
+<style>
+  :root {
+    --paper: #EFF3EC;
+    --grid: #D8E0D3;
+    --grid-faint: rgba(120, 140, 120, 0.10);
+    --slip: #FBFDF8;
+    --ink: #23312B;
+    --muted: #77857C;
+    --stamp: #C7442E;
+    --stamp-press: #A93722;
+    --wire: #2E5E8C;
+    --pc: #3C6E5F;
+    --phone: #2E5E8C;
+    --ok: #3E7D5C;
+    --shadow: 0 1px 2px rgba(35, 49, 43, 0.08);
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "PingFang SC", monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #151A17;
+      --grid: #2A332C;
+      --grid-faint: rgba(160, 180, 160, 0.06);
+      --slip: #1D2420;
+      --ink: #E2E9E2;
+      --muted: #7E8B82;
+      --stamp: #E06248;
+      --stamp-press: #C74E36;
+      --wire: #6FA3D8;
+      --pc: #6BAE9B;
+      --phone: #6FA3D8;
+      --ok: #57A57E;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    color: var(--ink);
+    background-color: var(--paper);
+    background-image:
+      linear-gradient(var(--grid-faint) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-faint) 1px, transparent 1px);
+    background-size: 24px 24px;
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    flex-shrink: 0;
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    padding: 14px 18px 12px;
+    border-bottom: 1px solid var(--grid);
+    background: var(--paper);
+  }
+  .wordmark {
+    font-size: 17px;
+    font-weight: 750;
+    letter-spacing: -0.02em;
+  }
+  .status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font: 11px/1 var(--mono);
+    color: var(--muted);
+  }
+  #conn-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--stamp);
+    transition: background .3s;
+  }
+  #conn-dot.on { background: var(--ok); }
+  header .spacer { flex: 1; }
+  header .hint {
+    font: 11px/1 var(--mono);
+    color: var(--muted);
+  }
+  @media (max-width: 560px) { header .hint { display: none; } }
+
+  #messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 14px 10px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  #load-more {
+    display: block;
+    margin: 0 auto 18px;
+    background: none;
+    border: 1px dashed var(--grid);
+    border-radius: 3px;
+    color: var(--muted);
+    font: 11px var(--mono);
+    padding: 6px 16px;
+    cursor: pointer;
+  }
+  #load-more:hover { color: var(--ink); border-color: var(--muted); }
+  #load-more.hidden { display: none; }
+
+  .day {
+    max-width: 680px;
+    margin: 4px auto 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--muted);
+    font: 11px/1 var(--mono);
+    letter-spacing: 0.08em;
+  }
+  .day::before, .day::after {
+    content: '';
+    flex: 1;
+    border-top: 1px dashed var(--grid);
+  }
+
+  .msg {
+    max-width: min(680px, 100%);
+    margin: 0 auto 12px;
+    background: var(--slip);
+    border: 1px solid var(--grid);
+    border-left: 3px solid var(--muted);
+    border-radius: 3px;
+    box-shadow: var(--shadow);
+    padding: 9px 12px 9px;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+  .msg--pc { border-left-color: var(--pc); }
+  .msg--phone { border-left-color: var(--phone); }
+  .msg.new { animation: slipIn .22s ease-out; }
+  @keyframes slipIn {
+    from { opacity: 0; transform: translateY(6px); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .msg.new { animation: none; }
+  }
+
+  .msg .meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font: 11px/1 var(--mono);
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .msg--pc .meta .from { color: var(--pc); }
+  .msg--phone .meta .from { color: var(--phone); }
+  .msg .meta .copy-btn {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: var(--muted);
+    font: 11px var(--mono);
+    cursor: pointer;
+    padding: 3px 6px;
+    border-radius: 3px;
+  }
+  .msg .meta .copy-btn:hover { color: var(--ink); background: var(--grid-faint); }
+  .msg .meta .copy-btn.done { color: var(--stamp); }
+
+  .msg .body { white-space: pre-wrap; }
+  .msg .body a { color: var(--wire); text-underline-offset: 2px; }
+  .msg img {
+    max-width: 100%;
+    max-height: 360px;
+    border-radius: 2px;
+    display: block;
+    cursor: zoom-in;
+    background: var(--grid-faint);
+  }
+
+  #composer {
+    flex-shrink: 0;
+    border-top: 1px solid var(--grid);
+    background: var(--paper);
+    padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
+  }
+  #composer .row {
+    max-width: 680px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+  }
+  #input {
+    flex: 1;
+    resize: none;
+    background: var(--slip);
+    color: var(--ink);
+    border: 1px solid var(--grid);
+    border-radius: 3px;
+    box-shadow: var(--shadow);
+    padding: 10px 12px;
+    font: inherit;
+    max-height: 140px;
+    outline: none;
+  }
+  #input::placeholder { color: var(--muted); }
+  #input:focus { border-color: var(--wire); }
+
+  .icon-btn, #send {
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font: inherit;
+    flex-shrink: 0;
+    height: 42px;
+  }
+  .icon-btn {
+    background: var(--slip);
+    color: var(--muted);
+    border: 1px solid var(--grid);
+    box-shadow: var(--shadow);
+    width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .icon-btn:hover { color: var(--ink); }
+  #send {
+    background: var(--stamp);
+    color: #FBFDF8;
+    padding: 0 20px;
+    font-weight: 650;
+    letter-spacing: 0.04em;
+  }
+  #send:active { background: var(--stamp-press); }
+
+  :focus-visible {
+    outline: 2px solid var(--wire);
+    outline-offset: 1px;
+  }
+
+  #gate {
+    position: fixed; inset: 0;
+    background-color: var(--paper);
+    background-image:
+      linear-gradient(var(--grid-faint) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-faint) 1px, transparent 1px);
+    background-size: 24px 24px;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 10;
+  }
+  #gate.hidden { display: none; }
+  #gate .card {
+    background: var(--slip);
+    border: 1px solid var(--grid);
+    border-radius: 4px;
+    box-shadow: var(--shadow);
+    padding: 30px 26px 24px;
+    width: min(330px, 88vw);
+    text-align: center;
+  }
+  #gate h2 {
+    margin: 0 0 4px;
+    font-size: 20px;
+    font-weight: 750;
+    letter-spacing: -0.02em;
+  }
+  #gate .sub {
+    margin: 0 0 22px;
+    color: var(--muted);
+    font: 11px/1.6 var(--mono);
+    letter-spacing: 0.06em;
+  }
+  #gate input {
+    width: 100%;
+    background: var(--paper);
+    border: 1px solid var(--grid);
+    border-radius: 3px;
+    color: var(--ink);
+    padding: 11px 12px;
+    font: 14px var(--mono);
+    outline: none;
+    margin-bottom: 12px;
+    text-align: center;
+    letter-spacing: 0.1em;
+  }
+  #gate input:focus { border-color: var(--wire); }
+  #gate button {
+    width: 100%;
+    background: var(--stamp);
+    border: none;
+    border-radius: 3px;
+    color: #FBFDF8;
+    padding: 11px;
+    font: inherit;
+    font-weight: 650;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+  }
+  #gate button:active { background: var(--stamp-press); }
+  #gate .err {
+    color: var(--stamp);
+    font: 11px var(--mono);
+    min-height: 16px;
+    margin-top: 12px;
+  }
+
+  #viewer {
+    position: fixed; inset: 0;
+    background: rgba(16, 22, 18, 0.92);
+    display: none;
+    align-items: center; justify-content: center;
+    z-index: 20;
+    cursor: zoom-out;
+  }
+  #viewer.show { display: flex; }
+  #viewer img { max-width: 96vw; max-height: 96vh; }
+
+  #toast {
+    position: fixed;
+    left: 50%; bottom: 92px;
+    transform: translateX(-50%);
+    background: var(--ink);
+    color: var(--paper);
+    padding: 8px 16px;
+    border-radius: 3px;
+    font: 12px var(--mono);
+    opacity: 0;
+    transition: opacity .25s;
+    pointer-events: none;
+    z-index: 30;
+    white-space: nowrap;
+  }
+  #toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wordmark">DropLink</div>
+  <div class="status"><span id="conn-dot"></span><span id="conn-text">连线中</span></div>
+  <div class="spacer"></div>
+  <div class="hint">粘贴或拖入图片即可发送</div>
+</header>
+
+<div id="messages">
+  <button id="load-more" class="hidden">加载更早的记录</button>
+</div>
+
+<div id="composer">
+  <div class="row">
+    <button class="icon-btn" id="pick-img" title="发送图片" aria-label="发送图片">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="3" y="4" width="18" height="16" rx="2"/>
+        <circle cx="9" cy="10" r="1.6"/>
+        <path d="M3 17l5.2-5.2a1.5 1.5 0 0 1 2.1 0L21 18"/>
+      </svg>
+    </button>
+    <textarea id="input" rows="1" placeholder="写点什么，Enter 发送"></textarea>
+    <button id="send">发送</button>
+  </div>
+  <input type="file" id="file-input" accept="image/*" multiple hidden>
+</div>
+
+<div id="gate" class="hidden">
+  <div class="card">
+    <h2>DropLink</h2>
+    <p class="sub">私人传报线路 · 凭口令接入</p>
+    <input type="password" id="pw" placeholder="口令" autocomplete="current-password">
+    <button id="login-btn">进入</button>
+    <div class="err" id="login-err"></div>
+  </div>
+</div>
+
+<div id="viewer"><img id="viewer-img" alt=""></div>
+<div id="toast"></div>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const messagesEl = $('messages');
+  const loadMoreBtn = $('load-more');
+  const inputEl = $('input');
+  const sender = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? '手机' : '电脑';
+
+  let ws = null;
+  let oldestId = null;
+  let hasMore = false;
+
+  function toast(text) {
+    const t = $('toast');
+    t.textContent = text;
+    t.classList.add('show');
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => t.classList.remove('show'), 2000);
+  }
+
+  const pad = (n) => String(n).padStart(2, '0');
+
+  function fmtTime(ts) {
+    const d = new Date(ts);
+    return pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+
+  function dayLabel(ts) {
+    const d = new Date(ts);
+    const now = new Date();
+    const startOf = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+    const diffDays = Math.round((startOf(now) - startOf(d)) / 86400000);
+    if (diffDays === 0) return '今天';
+    if (diffDays === 1) return '昨天';
+    const md = (d.getMonth() + 1) + '月' + d.getDate() + '日';
+    return d.getFullYear() === now.getFullYear() ? md : d.getFullYear() + '年' + md;
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  function linkify(escaped) {
+    return escaped.replace(/(https?:\/\/[^\s<]+)/g,
+      '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+  }
+
+  function isNearBottom() {
+    return messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < 120;
+  }
+
+  function senderClass(s) {
+    if (s === '电脑') return 'msg--pc';
+    if (s === '手机') return 'msg--phone';
+    return '';
+  }
+
+  function renderMsg(m) {
+    const div = document.createElement('div');
+    div.className = ('msg ' + senderClass(m.sender)).trim();
+    div.dataset.id = m.id;
+    div.dataset.ts = m.created_at;
+
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.innerHTML = '<span class="from">自 ' + escapeHtml(m.sender || '未知')
+      + '</span><span>' + fmtTime(m.created_at) + '</span>';
+
+    const body = document.createElement('div');
+    body.className = 'body';
+
+    if (m.type === 'text') {
+      body.innerHTML = linkify(escapeHtml(m.content));
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'copy-btn';
+      copyBtn.textContent = '复制';
+      copyBtn.onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(m.content);
+          copyBtn.textContent = '已复制';
+          copyBtn.classList.add('done');
+          setTimeout(() => { copyBtn.textContent = '复制'; copyBtn.classList.remove('done'); }, 1500);
+        } catch { toast('复制失败'); }
+      };
+      meta.appendChild(copyBtn);
+    } else if (m.type === 'image') {
+      const img = document.createElement('img');
+      img.loading = 'lazy';
+      img.src = m.content;
+      img.onclick = () => {
+        $('viewer-img').src = m.content;
+        $('viewer').classList.add('show');
+      };
+      body.appendChild(img);
+    }
+
+    div.appendChild(meta);
+    div.appendChild(body);
+    return div;
+  }
+
+  function ensureDividers() {
+    messagesEl.querySelectorAll('.day').forEach((el) => el.remove());
+    let prevDay = null;
+    messagesEl.querySelectorAll('.msg').forEach((el) => {
+      const d = new Date(parseInt(el.dataset.ts, 10));
+      const key = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate();
+      if (key !== prevDay) {
+        const div = document.createElement('div');
+        div.className = 'day';
+        div.textContent = dayLabel(parseInt(el.dataset.ts, 10));
+        el.before(div);
+        prevDay = key;
+      }
+    });
+  }
+
+  function appendMsg(m) {
+    const stick = isNearBottom();
+    const el = renderMsg(m);
+    el.classList.add('new');
+    messagesEl.appendChild(el);
+    ensureDividers();
+    if (stick) messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  async function loadHistory(before) {
+    const url = '/api/messages?limit=50' + (before ? '&before=' + before : '');
+    const res = await fetch(url);
+    if (res.status === 401) return showGate();
+    const { messages } = await res.json();
+    hasMore = messages.length === 50;
+    loadMoreBtn.classList.toggle('hidden', !hasMore);
+    if (messages.length) {
+      oldestId = messages[0].id;
+      const frag = document.createDocumentFragment();
+      messages.forEach((m) => frag.appendChild(renderMsg(m)));
+      if (before) {
+        const prevHeight = messagesEl.scrollHeight;
+        loadMoreBtn.after(frag);
+        ensureDividers();
+        messagesEl.scrollTop += messagesEl.scrollHeight - prevHeight;
+      } else {
+        messagesEl.appendChild(frag);
+        ensureDividers();
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      }
+    }
+  }
+
+  loadMoreBtn.onclick = () => loadHistory(oldestId);
+
+  function setConn(on) {
+    $('conn-dot').classList.toggle('on', on);
+    $('conn-text').textContent = on ? '在线' : '连线中';
+  }
+
+  function connectWS() {
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    ws = new WebSocket(proto + '//' + location.host);
+    ws.onopen = () => setConn(true);
+    ws.onmessage = (e) => {
+      const data = JSON.parse(e.data);
+      if (data.kind === 'message') appendMsg(data.message);
+    };
+    ws.onclose = () => {
+      setConn(false);
+      setTimeout(() => { if (!$('gate').classList.contains('hidden')) return; connectWS(); }, 2000);
+    };
+  }
+
+  function sendText() {
+    const content = inputEl.value.trim();
+    if (!content || !ws || ws.readyState !== 1) return;
+    ws.send(JSON.stringify({ kind: 'text', content, sender }));
+    inputEl.value = '';
+    inputEl.style.height = 'auto';
+    inputEl.focus();
+  }
+
+  $('send').onclick = sendText;
+  inputEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+      e.preventDefault();
+      sendText();
+    }
+  });
+  inputEl.addEventListener('input', () => {
+    inputEl.style.height = 'auto';
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 140) + 'px';
+  });
+
+  async function uploadImage(file) {
+    if (!file.type.startsWith('image/')) return toast('只支持图片');
+    const fd = new FormData();
+    fd.append('image', file);
+    fd.append('sender', sender);
+    toast('上传中…');
+    const res = await fetch('/api/upload', { method: 'POST', body: fd });
+    if (res.status === 401) return showGate();
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      return toast(j.error || '上传失败');
+    }
+    toast('已发送');
+  }
+
+  $('pick-img').onclick = () => $('file-input').click();
+  $('file-input').addEventListener('change', (e) => {
+    [...e.target.files].forEach(uploadImage);
+    e.target.value = '';
+  });
+
+  document.addEventListener('paste', (e) => {
+    const items = [...(e.clipboardData?.items || [])];
+    const imgs = items.filter((it) => it.type.startsWith('image/'));
+    if (imgs.length) {
+      e.preventDefault();
+      imgs.forEach((it) => uploadImage(it.getAsFile()));
+    }
+  });
+
+  document.addEventListener('dragover', (e) => e.preventDefault());
+  document.addEventListener('drop', (e) => {
+    e.preventDefault();
+    [...(e.dataTransfer?.files || [])].forEach(uploadImage);
+  });
+
+  $('viewer').onclick = () => $('viewer').classList.remove('show');
+
+  function showGate() {
+    $('gate').classList.remove('hidden');
+    $('pw').focus();
+  }
+  async function login() {
+    const password = $('pw').value;
+    if (!password) return;
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    });
+    if (!res.ok) {
+      $('login-err').textContent = '口令错误';
+      return;
+    }
+    $('gate').classList.add('hidden');
+    $('login-err').textContent = '';
+    boot();
+  }
+  $('login-btn').onclick = login;
+  $('pw').addEventListener('keydown', (e) => { if (e.key === 'Enter') login(); });
+
+  async function boot() {
+    await loadHistory();
+    connectWS();
+  }
+
+  fetch('/api/me').then((r) => r.json()).then(({ authed }) => {
+    if (authed) boot();
+    else showGate();
+  });
+})();
+</script>
+</body>
+</html>
