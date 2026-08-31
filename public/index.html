@@ -3,6 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#EFF3EC">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#151A17">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='6' width='26' height='20' rx='3' fill='%23FBFDF8' stroke='%233C6E5F' stroke-width='2'/%3E%3Cpath d='M8 12h16M8 16h16M8 20h9' stroke='%23C7442E' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
 <title>DropLink · 设备互传</title>
 <style>
   :root {
@@ -177,6 +182,13 @@
     .msg .meta .copy-btn { opacity: 0; transition: opacity .15s; }
     .msg:hover .meta .copy-btn, .msg .meta .copy-btn.done { opacity: 1; }
   }
+  /* 触屏设备：加大可点区域 */
+  @media (hover: none) {
+    .msg .meta .copy-btn { font-size: 12px; padding: 8px 10px; margin-top: -6px; margin-bottom: -4px; }
+    #text-viewer .tv-bar button { font-size: 13px; padding: 8px 14px; }
+    .icon-btn { width: 48px; }
+    #send { padding: 0 22px; }
+  }
   .msg .meta .copy-btn:hover { color: var(--ink); background: var(--grid-faint); }
   .msg .meta .copy-btn.done { color: var(--stamp); }
 
@@ -214,6 +226,8 @@
     box-shadow: var(--shadow);
     padding: 10px 12px;
     font: inherit;
+    /* 16px 以上可避免 iOS 聚焦输入框时自动放大页面 */
+    font-size: 16px;
     max-height: 140px;
     outline: none;
   }
@@ -459,6 +473,7 @@
   const loadMoreBtn = $('load-more');
   const inputEl = $('input');
   const sender = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? '手机' : '电脑';
+  const canHover = window.matchMedia('(hover: hover)').matches;
 
   let ws = null;
   let oldestId = null;
@@ -537,7 +552,8 @@
 
     if (m.type === 'text') {
       body.innerHTML = linkify(escapeHtml(m.content));
-      if (m.content.length > 100 || m.content.split('\n').length > 4) {
+      const needView = m.content.length > 100 || m.content.split('\n').length > 4;
+      if (needView) {
         const viewBtn = document.createElement('button');
         viewBtn.className = 'copy-btn';
         viewBtn.textContent = '查看';
@@ -547,7 +563,7 @@
       const copyBtn = document.createElement('button');
       copyBtn.className = 'copy-btn';
       copyBtn.textContent = '复制';
-      copyBtn.style.marginLeft = '0';
+      if (needView) copyBtn.style.marginLeft = '0';
       copyBtn.onclick = async () => {
         if (await copyText(m.content)) {
           copyBtn.textContent = '已复制';
@@ -695,12 +711,17 @@
   }
 
   $('send').onclick = sendText;
-  inputEl.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
-      e.preventDefault();
-      sendText();
-    }
-  });
+  // 触屏设备上 Enter 是换行（用发送按钮），桌面端 Enter 直接发送
+  if (canHover) {
+    inputEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+        e.preventDefault();
+        sendText();
+      }
+    });
+  } else {
+    inputEl.placeholder = '写点什么…';
+  }
   inputEl.addEventListener('input', () => {
     inputEl.style.height = 'auto';
     inputEl.style.height = Math.min(inputEl.scrollHeight, 140) + 'px';
