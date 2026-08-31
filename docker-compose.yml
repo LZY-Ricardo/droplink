@@ -2,6 +2,8 @@ services:
   droplink:
     build:
       context: .
+      # 部分服务器 buildkit 桥接网络不通，用宿主机网络构建
+      network: host
       args:
         # 国内服务器可在 .env 设置 NPM_REGISTRY=https://registry.npmmirror.com/
         NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org/}
