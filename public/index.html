@@ -130,6 +130,7 @@
   .msg {
     max-width: min(680px, 100%);
     margin: 0 auto 10px;
+    touch-action: manipulation;
     background: var(--slip);
     border: 1px solid var(--grid);
     border-left: 3px solid var(--muted);
@@ -329,6 +330,56 @@
   #viewer.show { display: flex; }
   #viewer img { max-width: 96vw; max-height: 96vh; }
 
+  #text-viewer {
+    position: fixed; inset: 0;
+    background: rgba(16, 22, 18, 0.55);
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 20px;
+    z-index: 20;
+  }
+  #text-viewer.show { display: flex; }
+  #text-viewer .tv-card {
+    background: var(--slip);
+    border: 1px solid var(--grid);
+    border-radius: 4px;
+    box-shadow: 0 8px 32px rgba(16, 22, 18, 0.25);
+    width: min(720px, 94vw);
+    max-height: 86vh;
+    display: flex;
+    flex-direction: column;
+  }
+  #text-viewer .tv-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--grid);
+    font: 11px var(--mono);
+    color: var(--muted);
+  }
+  #text-viewer .tv-bar button {
+    background: none;
+    border: 1px solid var(--grid);
+    border-radius: 3px;
+    color: var(--muted);
+    font: 11px var(--mono);
+    padding: 4px 10px;
+    cursor: pointer;
+  }
+  #text-viewer .tv-bar button:hover { color: var(--ink); border-color: var(--muted); }
+  #text-viewer .tv-bar .tv-spacer { flex: 1; }
+  #text-viewer .tv-body {
+    padding: 16px 18px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    font-size: 16px;
+    line-height: 1.7;
+  }
+  #text-viewer .tv-body a { color: var(--wire); }
+
   #toast {
     position: fixed;
     left: 50%; bottom: 92px;
@@ -386,6 +437,19 @@
 </div>
 
 <div id="viewer"><img id="viewer-img" alt=""></div>
+
+<div id="text-viewer">
+  <div class="tv-card">
+    <div class="tv-bar">
+      <span id="tv-meta"></span>
+      <span class="tv-spacer"></span>
+      <button id="tv-copy">复制</button>
+      <button id="tv-close">关闭</button>
+    </div>
+    <div class="tv-body" id="tv-body"></div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -409,6 +473,17 @@
     t.classList.add('show');
     clearTimeout(toast._timer);
     toast._timer = setTimeout(() => t.classList.remove('show'), 2000);
+  }
+
+  async function copyText(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast('已复制');
+      return true;
+    } catch {
+      toast('复制失败');
+      return false;
+    }
   }
 
   const pad = (n) => String(n).padStart(2, '0');
@@ -462,18 +537,30 @@
 
     if (m.type === 'text') {
       body.innerHTML = linkify(escapeHtml(m.content));
+      if (m.content.length > 100 || m.content.split('\n').length > 4) {
+        const viewBtn = document.createElement('button');
+        viewBtn.className = 'copy-btn';
+        viewBtn.textContent = '查看';
+        viewBtn.onclick = () => openTextViewer(m);
+        meta.appendChild(viewBtn);
+      }
       const copyBtn = document.createElement('button');
       copyBtn.className = 'copy-btn';
       copyBtn.textContent = '复制';
+      copyBtn.style.marginLeft = '0';
       copyBtn.onclick = async () => {
-        try {
-          await navigator.clipboard.writeText(m.content);
+        if (await copyText(m.content)) {
           copyBtn.textContent = '已复制';
           copyBtn.classList.add('done');
           setTimeout(() => { copyBtn.textContent = '复制'; copyBtn.classList.remove('done'); }, 1500);
-        } catch { toast('复制失败'); }
+        }
       };
       meta.appendChild(copyBtn);
+      // 双击消息直接复制全文
+      div.addEventListener('dblclick', (e) => {
+        if (e.target.closest('a, button')) return;
+        copyText(m.content);
+      });
     } else if (m.type === 'image') {
       const img = document.createElement('img');
       img.loading = 'lazy';
@@ -658,6 +745,25 @@
   });
 
   $('viewer').onclick = () => $('viewer').classList.remove('show');
+
+  let tvContent = '';
+  function openTextViewer(m) {
+    tvContent = m.content;
+    $('tv-meta').textContent = (m.sender || '未知') + ' · ' + fmtTime(m.created_at);
+    $('tv-body').innerHTML = linkify(escapeHtml(m.content));
+    $('text-viewer').classList.add('show');
+  }
+  $('tv-copy').onclick = () => copyText(tvContent);
+  $('tv-close').onclick = () => $('text-viewer').classList.remove('show');
+  $('text-viewer').addEventListener('click', (e) => {
+    if (e.target === $('text-viewer')) $('text-viewer').classList.remove('show');
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      $('viewer').classList.remove('show');
+      $('text-viewer').classList.remove('show');
+    }
+  });
 
   function showGate() {
     $('gate').classList.remove('hidden');
