@@ -1,14 +1,16 @@
 services:
   droplink:
-    build: .
+    build:
+      context: .
+      args:
+        # 国内服务器可在 .env 设置 NPM_REGISTRY=https://registry.npmmirror.com/
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org/}
     container_name: droplink
     restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
-      # 部署前改成你自己的口令
-      ACCESS_TOKEN: "change-me"
-      # 单张图片大小上限（MB），可选
-      MAX_IMAGE_MB: "10"
+      ACCESS_TOKEN: ${ACCESS_TOKEN:?请在同目录 .env 文件中设置 ACCESS_TOKEN 口令}
+      MAX_IMAGE_MB: ${MAX_IMAGE_MB:-10}
     volumes:
       - ./data:/app/data

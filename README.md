@@ -14,7 +14,9 @@
 
 ```bash
 # 1. 把整个目录传到服务器，例如 /opt/droplink
-# 2. 编辑 docker-compose.yml，把 ACCESS_TOKEN 改成你自己的口令
+# 2. 在目录下创建 .env 文件设置口令：
+#    ACCESS_TOKEN=你的口令
+#    国内服务器再加一行：NPM_REGISTRY=https://registry.npmmirror.com/
 # 3. 启动
 docker compose up -d --build
 ```
