@@ -112,13 +112,14 @@
 
   .day {
     max-width: 680px;
-    margin: 4px auto 16px;
+    margin: 2px auto 12px;
     display: flex;
     align-items: center;
     gap: 12px;
     color: var(--muted);
-    font: 11px/1 var(--mono);
-    letter-spacing: 0.08em;
+    font: 10px/1 var(--mono);
+    letter-spacing: 0.1em;
+    opacity: 0.8;
   }
   .day::before, .day::after {
     content: '';
@@ -128,13 +129,13 @@
 
   .msg {
     max-width: min(680px, 100%);
-    margin: 0 auto 12px;
+    margin: 0 auto 10px;
     background: var(--slip);
     border: 1px solid var(--grid);
     border-left: 3px solid var(--muted);
     border-radius: 3px;
     box-shadow: var(--shadow);
-    padding: 9px 12px 9px;
+    padding: 8px 12px;
     word-break: break-word;
     overflow-wrap: anywhere;
   }
@@ -152,9 +153,11 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    font: 11px/1 var(--mono);
+    font: 10px/1 var(--mono);
+    letter-spacing: 0.04em;
     color: var(--muted);
-    margin-bottom: 6px;
+    margin-bottom: 5px;
+    opacity: 0.85;
   }
   .msg--pc .meta .from { color: var(--pc); }
   .msg--phone .meta .from { color: var(--phone); }
@@ -163,10 +166,15 @@
     background: none;
     border: none;
     color: var(--muted);
-    font: 11px var(--mono);
+    font: 10px var(--mono);
     cursor: pointer;
     padding: 3px 6px;
     border-radius: 3px;
+  }
+  /* 支持悬停的设备上，复制按钮划过才出现 */
+  @media (hover: hover) {
+    .msg .meta .copy-btn { opacity: 0; transition: opacity .15s; }
+    .msg:hover .meta .copy-btn, .msg .meta .copy-btn.done { opacity: 1; }
   }
   .msg .meta .copy-btn:hover { color: var(--ink); background: var(--grid-faint); }
   .msg .meta .copy-btn.done { color: var(--stamp); }
@@ -345,7 +353,7 @@
   <div class="wordmark">DropLink</div>
   <div class="status"><span id="conn-dot"></span><span id="conn-text">连线中</span></div>
   <div class="spacer"></div>
-  <div class="hint">粘贴或拖入图片即可发送</div>
+  <div class="hint">粘贴图片即可发送</div>
 </header>
 
 <div id="messages">
@@ -370,7 +378,7 @@
 <div id="gate" class="hidden">
   <div class="card">
     <h2>DropLink</h2>
-    <p class="sub">私人传报线路 · 凭口令接入</p>
+    <p class="sub">凭口令接入</p>
     <input type="password" id="pw" placeholder="口令" autocomplete="current-password">
     <button id="login-btn">进入</button>
     <div class="err" id="login-err"></div>
@@ -446,8 +454,8 @@
 
     const meta = document.createElement('div');
     meta.className = 'meta';
-    meta.innerHTML = '<span class="from">自 ' + escapeHtml(m.sender || '未知')
-      + '</span><span>' + fmtTime(m.created_at) + '</span>';
+    meta.innerHTML = '<span class="from">' + escapeHtml(m.sender || '未知')
+      + '</span><span class="time">' + fmtTime(m.created_at) + '</span>';
 
     const body = document.createElement('div');
     body.className = 'body';
