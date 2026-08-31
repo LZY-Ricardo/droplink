@@ -391,6 +391,9 @@
   let ws = null;
   let oldestId = null;
   let hasMore = false;
+  let lastId = 0;
+  let pollTimer = null;
+  let wsRetryDelay = 2000;
 
   function toast(text) {
     const t = $('toast');
@@ -480,6 +483,7 @@
 
     div.appendChild(meta);
     div.appendChild(body);
+    if (m.id > lastId) lastId = m.id;
     return div;
   }
 
@@ -500,12 +504,32 @@
   }
 
   function appendMsg(m) {
+    if (messagesEl.querySelector('.msg[data-id="' + m.id + '"]')) return;
     const stick = isNearBottom();
     const el = renderMsg(m);
     el.classList.add('new');
     messagesEl.appendChild(el);
     ensureDividers();
     if (stick) messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  // WebSocket 在部分代理网络下无法建立，降级为 HTTP 轮询
+  async function pollOnce() {
+    try {
+      const res = await fetch('/api/messages?after=' + lastId);
+      if (res.status === 401) { stopPolling(); return showGate(); }
+      const { messages } = await res.json();
+      messages.forEach(appendMsg);
+    } catch {}
+  }
+  function startPolling() {
+    if (pollTimer) return;
+    pollTimer = setInterval(pollOnce, 2500);
+    setConn(true, '在线 · 轮询');
+  }
+  function stopPolling() {
+    clearInterval(pollTimer);
+    pollTimer = null;
   }
 
   async function loadHistory(before) {
@@ -534,29 +558,51 @@
 
   loadMoreBtn.onclick = () => loadHistory(oldestId);
 
-  function setConn(on) {
+  function setConn(on, label) {
     $('conn-dot').classList.toggle('on', on);
-    $('conn-text').textContent = on ? '在线' : '连线中';
+    $('conn-text').textContent = label || (on ? '在线' : '连线中');
   }
 
   function connectWS() {
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
     ws = new WebSocket(proto + '//' + location.host);
-    ws.onopen = () => setConn(true);
+    ws.onopen = () => {
+      wsRetryDelay = 2000;
+      stopPolling();
+      setConn(true);
+      pollOnce();
+    };
     ws.onmessage = (e) => {
       const data = JSON.parse(e.data);
       if (data.kind === 'message') appendMsg(data.message);
     };
     ws.onclose = () => {
-      setConn(false);
-      setTimeout(() => { if (!$('gate').classList.contains('hidden')) return; connectWS(); }, 2000);
+      if ($('gate').classList.contains('hidden')) startPolling();
+      wsRetryDelay = Math.min(wsRetryDelay * 2, 60000);
+      setTimeout(() => { if (!$('gate').classList.contains('hidden')) return; connectWS(); }, wsRetryDelay);
     };
   }
 
-  function sendText() {
+  async function sendText() {
     const content = inputEl.value.trim();
-    if (!content || !ws || ws.readyState !== 1) return;
-    ws.send(JSON.stringify({ kind: 'text', content, sender }));
+    if (!content) return;
+    if (ws && ws.readyState === 1) {
+      ws.send(JSON.stringify({ kind: 'text', content, sender }));
+    } else {
+      try {
+        const res = await fetch('/api/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content, sender }),
+        });
+        if (res.status === 401) return showGate();
+        if (!res.ok) return toast('发送失败');
+        const { message } = await res.json();
+        appendMsg(message);
+      } catch {
+        return toast('发送失败，请检查网络');
+      }
+    }
     inputEl.value = '';
     inputEl.style.height = 'auto';
     inputEl.focus();
@@ -586,6 +632,8 @@
       const j = await res.json().catch(() => ({}));
       return toast(j.error || '上传失败');
     }
+    const { message } = await res.json().catch(() => ({}));
+    if (message) appendMsg(message);
     toast('已发送');
   }
 

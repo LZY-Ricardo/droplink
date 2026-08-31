@@ -42,6 +42,9 @@ const listRecent = db.prepare(
 const listBefore = db.prepare(
   'SELECT * FROM messages WHERE id < ? ORDER BY id DESC LIMIT ?'
 );
+const listAfter = db.prepare(
+  'SELECT * FROM messages WHERE id > ? ORDER BY id ASC LIMIT 200'
+);
 
 // 口令不直接放进 cookie，存其哈希
 const SESSION_TOKEN = crypto
@@ -88,11 +91,22 @@ app.get('/api/me', (req, res) => {
 });
 
 app.get('/api/messages', requireAuth, (req, res) => {
+  const after = parseInt(req.query.after || '0', 10);
+  if (after > 0) {
+    return res.json({ messages: listAfter.all(after) });
+  }
   const limit = Math.min(parseInt(req.query.limit || '50', 10) || 50, 200);
   const before = parseInt(req.query.before || '0', 10);
   const rows = before > 0 ? listBefore.all(before, limit) : listRecent.all(limit);
   rows.reverse();
   res.json({ messages: rows });
+});
+
+app.post('/api/messages', requireAuth, (req, res) => {
+  const content = String(req.body?.content || '').trim().slice(0, 20000);
+  if (!content) return res.status(400).json({ error: '内容为空' });
+  const msg = saveAndBroadcast('text', content, req.body?.sender || '');
+  res.json({ ok: true, message: msg });
 });
 
 const upload = multer({
