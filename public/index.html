@@ -98,7 +98,7 @@
 
   #load-more {
     display: block;
-    margin: 0 auto 18px;
+    margin: 6px auto 18px;
     background: none;
     border: 1px dashed var(--grid);
     border-radius: 3px;
@@ -142,7 +142,7 @@
   .msg--phone { border-left-color: var(--phone); }
   .msg.new { animation: slipIn .22s ease-out; }
   @keyframes slipIn {
-    from { opacity: 0; transform: translateY(6px); }
+    from { opacity: 0; transform: translateY(-6px); }
   }
   @media (prefers-reduced-motion: reduce) {
     .msg.new { animation: none; }
@@ -432,10 +432,6 @@
       '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
   }
 
-  function isNearBottom() {
-    return messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < 120;
-  }
-
   function senderClass(s) {
     if (s === '电脑') return 'msg--pc';
     if (s === '手机') return 'msg--phone';
@@ -503,14 +499,16 @@
     });
   }
 
-  function appendMsg(m) {
+  // 时间线最新在顶：新消息插入顶部
+  function prependMsg(m) {
     if (messagesEl.querySelector('.msg[data-id="' + m.id + '"]')) return;
-    const stick = isNearBottom();
     const el = renderMsg(m);
     el.classList.add('new');
-    messagesEl.appendChild(el);
+    const atTop = messagesEl.scrollTop < 60;
+    messagesEl.prepend(el);
     ensureDividers();
-    if (stick) messagesEl.scrollTop = messagesEl.scrollHeight;
+    if (atTop) messagesEl.scrollTop = 0;
+    else messagesEl.scrollTop += el.offsetHeight + 12;
   }
 
   // WebSocket 在部分代理网络下无法建立，降级为 HTTP 轮询
@@ -519,7 +517,7 @@
       const res = await fetch('/api/messages?after=' + lastId);
       if (res.status === 401) { stopPolling(); return showGate(); }
       const { messages } = await res.json();
-      messages.forEach(appendMsg);
+      messages.forEach(prependMsg);
     } catch {}
   }
   function startPolling() {
@@ -542,17 +540,10 @@
     if (messages.length) {
       oldestId = messages[0].id;
       const frag = document.createDocumentFragment();
-      messages.forEach((m) => frag.appendChild(renderMsg(m)));
-      if (before) {
-        const prevHeight = messagesEl.scrollHeight;
-        loadMoreBtn.after(frag);
-        ensureDividers();
-        messagesEl.scrollTop += messagesEl.scrollHeight - prevHeight;
-      } else {
-        messagesEl.appendChild(frag);
-        ensureDividers();
-        messagesEl.scrollTop = messagesEl.scrollHeight;
-      }
+      messages.slice().reverse().forEach((m) => frag.appendChild(renderMsg(m)));
+      loadMoreBtn.before(frag);
+      ensureDividers();
+      if (!before) messagesEl.scrollTop = 0;
     }
   }
 
@@ -574,7 +565,7 @@
     };
     ws.onmessage = (e) => {
       const data = JSON.parse(e.data);
-      if (data.kind === 'message') appendMsg(data.message);
+      if (data.kind === 'message') prependMsg(data.message);
     };
     ws.onclose = () => {
       if ($('gate').classList.contains('hidden')) startPolling();
@@ -598,7 +589,7 @@
         if (res.status === 401) return showGate();
         if (!res.ok) return toast('发送失败');
         const { message } = await res.json();
-        appendMsg(message);
+        prependMsg(message);
       } catch {
         return toast('发送失败，请检查网络');
       }
@@ -633,7 +624,7 @@
       return toast(j.error || '上传失败');
     }
     const { message } = await res.json().catch(() => ({}));
-    if (message) appendMsg(message);
+    if (message) prependMsg(message);
     toast('已发送');
   }
 
